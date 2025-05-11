@@ -1,166 +1,194 @@
-<!-- <p align="center">
-<img src="/src/frontend/static/icons/Hipster_HeroLogoMaroon.svg" width="300" alt="Online Boutique" />
-</p> -->
-![Continuous Integration](https://github.com/GoogleCloudPlatform/microservices-demo/workflows/Continuous%20Integration%20-%20Main/Release/badge.svg)
+# ☁️ Online Boutique on GKE — "Just Add Cloud Credits"
 
-**Online Boutique** is a cloud-first microservices demo application.  The application is a
-web-based e-commerce app where users can browse items, add them to the cart, and purchase them.
+Welcome to the chaos-controlled deployment guide for **Online Boutique** — Google's microservices demo application. This is a real-world, 12-service e-commerce app built to stress-test your infrastructure skills.  
+This guide walks through deploying the project on **Google Kubernetes Engine (GKE)** with a heavy dose of command-line magic and Kubernetes cautionary tales.
 
-Google uses this application to demonstrate how developers can modernize enterprise applications using Google Cloud products, including: [Google Kubernetes Engine (GKE)](https://cloud.google.com/kubernetes-engine), [Cloud Service Mesh (CSM)](https://cloud.google.com/service-mesh), [gRPC](https://grpc.io/), [Cloud Operations](https://cloud.google.com/products/operations), [Spanner](https://cloud.google.com/spanner), [Memorystore](https://cloud.google.com/memorystore), [AlloyDB](https://cloud.google.com/alloydb), and [Gemini](https://ai.google.dev/). This application works on any Kubernetes cluster.
+---
 
-If you’re using this demo, please **★Star** this repository to show your interest!
+## 📚 Project Summary
 
-**Note to Googlers:** Please fill out the form at [go/microservices-demo](http://go/microservices-demo).
+This document captures the exact sequence of events — both triumphant and tragic — involved in spinning up **Online Boutique** on a GCP-hosted Kubernetes cluster.
 
-## Architecture
+What you’ll learn:
 
-**Online Boutique** is composed of 11 microservices written in different
-languages that talk to each other over gRPC.
+- How to navigate `gcloud`, `kubectl`, and rogue `k3s` configurations
+- How to avoid surprise billing
+- And how to finally get the frontend running without summoning nether demons
 
-[![Architecture of
-microservices](/docs/img/architecture-diagram.png)](/docs/img/architecture-diagram.png)
+Because nothing says “production-ready” like 12 pods and a mystery IP that doesn’t load.
 
-Find **Protocol Buffers Descriptions** at the [`./protos` directory](/protos).
+---
 
-| Service                                              | Language      | Description                                                                                                                       |
-| ---------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| [frontend](/src/frontend)                           | Go            | Exposes an HTTP server to serve the website. Does not require signup/login and generates session IDs for all users automatically. |
-| [cartservice](/src/cartservice)                     | C#            | Stores the items in the user's shopping cart in Redis and retrieves it.                                                           |
-| [productcatalogservice](/src/productcatalogservice) | Go            | Provides the list of products from a JSON file and ability to search products and get individual products.                        |
-| [currencyservice](/src/currencyservice)             | Node.js       | Converts one money amount to another currency. Uses real values fetched from European Central Bank. It's the highest QPS service. |
-| [paymentservice](/src/paymentservice)               | Node.js       | Charges the given credit card info (mock) with the given amount and returns a transaction ID.                                     |
-| [shippingservice](/src/shippingservice)             | Go            | Gives shipping cost estimates based on the shopping cart. Ships items to the given address (mock)                                 |
-| [emailservice](/src/emailservice)                   | Python        | Sends users an order confirmation email (mock).                                                                                   |
-| [checkoutservice](/src/checkoutservice)             | Go            | Retrieves user cart, prepares order and orchestrates the payment, shipping and the email notification.                            |
-| [recommendationservice](/src/recommendationservice) | Python        | Recommends other products based on what's given in the cart.                                                                      |
-| [adservice](/src/adservice)                         | Java          | Provides text ads based on given context words.                                                                                   |
-| [loadgenerator](/src/loadgenerator)                 | Python/Locust | Continuously sends requests imitating realistic user shopping flows to the frontend.                                              |
+## 🧩 Features
 
-## Screenshots
+🛠️ **GCP-Native Deployment**  
+Setup uses GKE Autopilot clusters with regional scope and project-level isolation.
 
-| Home Page                                                                                                         | Checkout Screen                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [![Screenshot of store homepage](/docs/img/online-boutique-frontend-1.png)](/docs/img/online-boutique-frontend-1.png) | [![Screenshot of checkout screen](/docs/img/online-boutique-frontend-2.png)](/docs/img/online-boutique-frontend-2.png) |
+🐙 **Multi-Service Madness**  
+Deploys 12+ microservices including frontend, cart, checkout, recommendation, email, Redis, and more.
 
-## Quickstart (GKE)
+🧠 **Resilience Through Debugging**  
+Troubleshooting `kubectl`, haunted kubeconfigs, and hidden defaults.
 
-1. Ensure you have the following requirements:
-   - [Google Cloud project](https://cloud.google.com/resource-manager/docs/creating-managing-projects#creating_a_project).
-   - Shell environment with `gcloud`, `git`, and `kubectl`.
+📦 **CLI-First Approach**  
+No portals. Just `kubectl`, YAML, and lots of prayer.
 
-2. Clone the latest major version.
+🧹 **Safe Teardown Procedures**  
+Stop the billing clock with precise cluster deletion instructions.
 
-   ```sh
-   git clone --depth 1 --branch v0 https://github.com/GoogleCloudPlatform/microservices-demo.git
-   cd microservices-demo/
-   ```
+---
 
-   The `--depth 1` argument skips downloading git history.
+## 🧠 Architecture Diagram
 
-3. Set the Google Cloud project and region and ensure the Google Kubernetes Engine API is enabled.
+```mermaid
+graph TD
+    GCP[GCP Project: turing-gadget-459415-t2]
+    GCP --> GKE[Autopilot GKE Cluster]
+    GKE --> Kube[kubectl + gke-gcloud-auth-plugin]
+    Kube -->|applies manifests| Boutique[Online Boutique Services]
+    Boutique --> Frontend[Frontend Service]
+    Boutique --> Redis[Redis Cart]
+    Boutique --> Cart[Cart Service]
+    Boutique --> Product[Product Catalog]
+    Boutique --> Currency[Currency Service]
+    Boutique --> Payment[Payment Service]
+    Boutique --> Shipping[Shipping Service]
+    Boutique --> Checkout[Checkout Service]
+    Boutique --> Recommendation[Recommendation Service]
+    Boutique --> Email[Email Service]
+    Boutique --> Ad[Ad Service]
+    LoadGenerator[Load Generator] --> Frontend
+    Frontend -->|Exposes| ExternalIP["User Browser (http)"]
+```
 
-   ```sh
-   export PROJECT_ID=<PROJECT_ID>
-   export REGION=us-central1
-   gcloud services enable container.googleapis.com \
-     --project=${PROJECT_ID}
-   ```
+   
+---
 
-   Substitute `<PROJECT_ID>` with the ID of your Google Cloud project.
+## 🗂 Folder Structure (Key Components Only)
 
-4. Create a GKE cluster and get the credentials for it.
+```
+online-boutique-demo/
+├── src/                  # Microservice source code
+│   └── frontend/         # Includes Go code, HTML templates, static assets
+├── release/              # Kubernetes manifests (monolithic YAML)
+│   ├── kubernetes-manifests.yaml
+│   └── istio-manifests.yaml
+├── helm-chart/           # Helm templating for services
+├── kustomize/            # Components and overlays (Istio, Memorystore, etc.)
+├── terraform/            # Optional IaaC for infra provisioning
+├── cloudbuild.yaml       # Google Cloud Build config
+└── skaffold.yaml         # Local development with Skaffold
+```
 
-   ```sh
-   gcloud container clusters create-auto online-boutique \
-     --project=${PROJECT_ID} --region=${REGION}
-   ```
+> Also includes `/docs` and `/protos`, but feel free to ignore unless you’re feeling adventurous.
 
-   Creating the cluster may take a few minutes.
+---
 
-5. Deploy Online Boutique to the cluster.
+## 🧪 Usage Instructions
 
-   ```sh
-   kubectl apply -f ./release/kubernetes-manifests.yaml
-   ```
+> CLI or bust. GUIs are for billing alerts.
 
-6. Wait for the pods to be ready.
+### 1. 🧰 Install GCloud CLI
 
-   ```sh
-   kubectl get pods
-   ```
+```bash
+curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz
+tar -xf google-cloud-cli-linux-x86_64.tar.gz
+./google-cloud-sdk/install.sh --usage-reporting=false --path-update=true
+```
 
-   After a few minutes, you should see the Pods in a `Running` state:
+### 2. 🧺 Clone the Repository
 
-   ```
-   NAME                                     READY   STATUS    RESTARTS   AGE
-   adservice-76bdd69666-ckc5j               1/1     Running   0          2m58s
-   cartservice-66d497c6b7-dp5jr             1/1     Running   0          2m59s
-   checkoutservice-666c784bd6-4jd22         1/1     Running   0          3m1s
-   currencyservice-5d5d496984-4jmd7         1/1     Running   0          2m59s
-   emailservice-667457d9d6-75jcq            1/1     Running   0          3m2s
-   frontend-6b8d69b9fb-wjqdg                1/1     Running   0          3m1s
-   loadgenerator-665b5cd444-gwqdq           1/1     Running   0          3m
-   paymentservice-68596d6dd6-bf6bv          1/1     Running   0          3m
-   productcatalogservice-557d474574-888kr   1/1     Running   0          3m
-   recommendationservice-69c56b74d4-7z8r5   1/1     Running   0          3m1s
-   redis-cart-5f59546cdd-5jnqf              1/1     Running   0          2m58s
-   shippingservice-6ccc89f8fd-v686r         1/1     Running   0          2m58s
-   ```
+```bash
+git clone https://github.com/raoz0r/online-boutique-demo.git
+cd online-boutique-demo
+```
 
-7. Access the web frontend in a browser using the frontend's external IP.
+### 3. 🔧 Configure Project and Region
 
-   ```sh
-   kubectl get service frontend-external | awk '{print $4}'
-   ```
+```bash
+export PROJECT_ID=turing-gadget-459415-t2
+export REGION=europe-west6
 
-   Visit `http://EXTERNAL_IP` in a web browser to access your instance of Online Boutique.
+gcloud services enable container.googleapis.com --project=${PROJECT_ID}
+```
 
-8. Congrats! You've deployed the default Online Boutique. To deploy a different variation of Online Boutique (e.g., with Google Cloud Operations tracing, Istio, etc.), see [Deploy Online Boutique variations with Kustomize](#deploy-online-boutique-variations-with-kustomize).
+> ⚠️ Use `gcloud projects describe <project>` if unsure.
 
-9. Once you are done with it, delete the GKE cluster.
+---
 
-   ```sh
-   gcloud container clusters delete online-boutique \
-     --project=${PROJECT_ID} --region=${REGION}
-   ```
+### 4. 🚀 Create Cluster & Authenticate
 
-   Deleting the cluster may take a few minutes.
+```bash
+gcloud container clusters create-auto online-boutique --project=${PROJECT_ID} --region=${REGION}
+gcloud components install gke-gcloud-auth-plugin
+gcloud container clusters get-credentials online-boutique --region=${REGION}
+```
 
-## Additional deployment options
+> If `kubectl` connects to `127.0.0.1:6443`, check for `/etc/rancher/k3s/k3s.yaml`. Delete and reset `~/.kube/config`.
 
-- **Terraform**: [See these instructions](/terraform) to learn how to deploy Online Boutique using [Terraform](https://www.terraform.io/intro).
-- **Istio / Cloud Service Mesh**: [See these instructions](/kustomize/components/service-mesh-istio/README.md) to deploy Online Boutique alongside an Istio-backed service mesh.
-- **Non-GKE clusters (Minikube, Kind, etc)**: See the [Development guide](/docs/development-guide.md) to learn how you can deploy Online Boutique on non-GKE clusters.
-- **AI assistant using Gemini**: [See these instructions](/kustomize/components/shopping-assistant/README.md) to deploy a Gemini-powered AI assistant that suggests products to purchase based on an image.
-- **And more**: The [`/kustomize` directory](/kustomize) contains instructions for customizing the deployment of Online Boutique with other variations.
+---
 
-## Documentation
+### 5. 🧙‍♂️ Deploy the Online Boutique
 
-- [Development](/docs/development-guide.md) to learn how to run and develop this app locally.
+```bash
+kubectl apply -f ./release/kubernetes-manifests.yaml
+kubectl get pods --watch
+```
 
-## Demos featuring Online Boutique
+### ✅ Verify Deployment
 
-- [Platform Engineering in action: Deploy the Online Boutique sample apps with Score and Humanitec](https://medium.com/p/d99101001e69)
-- [The new Kubernetes Gateway API with Istio and Anthos Service Mesh (ASM)](https://medium.com/p/9d64c7009cd)
-- [Use Azure Redis Cache with the Online Boutique sample on AKS](https://medium.com/p/981bd98b53f8)
-- [Sail Sharp, 8 tips to optimize and secure your .NET containers for Kubernetes](https://medium.com/p/c68ba253844a)
-- [Deploy multi-region application with Anthos and Google cloud Spanner](https://medium.com/google-cloud/a2ea3493ed0)
-- [Use Google Cloud Memorystore (Redis) with the Online Boutique sample on GKE](https://medium.com/p/82f7879a900d)
-- [Use Helm to simplify the deployment of Online Boutique, with a Service Mesh, GitOps, and more!](https://medium.com/p/246119e46d53)
-- [How to reduce microservices complexity with Apigee and Anthos Service Mesh](https://cloud.google.com/blog/products/application-modernization/api-management-and-service-mesh-go-together)
-- [gRPC health probes with Kubernetes 1.24+](https://medium.com/p/b5bd26253a4c)
-- [Use Google Cloud Spanner with the Online Boutique sample](https://medium.com/p/f7248e077339)
-- [Seamlessly encrypt traffic from any apps in your Mesh to Memorystore (redis)](https://medium.com/google-cloud/64b71969318d)
-- [Strengthen your app's security with Cloud Service Mesh and Anthos Config Management](https://cloud.google.com/service-mesh/docs/strengthen-app-security)
-- [From edge to mesh: Exposing service mesh applications through GKE Ingress](https://cloud.google.com/architecture/exposing-service-mesh-apps-through-gke-ingress)
-- [Take the first step toward SRE with Cloud Operations Sandbox](https://cloud.google.com/blog/products/operations/on-the-road-to-sre-with-cloud-operations-sandbox)
-- [Deploying the Online Boutique sample application on Cloud Service Mesh](https://cloud.google.com/service-mesh/docs/onlineboutique-install-kpt)
-- [Anthos Service Mesh Workshop: Lab Guide](https://codelabs.developers.google.com/codelabs/anthos-service-mesh-workshop)
-- [KubeCon EU 2019 - Reinventing Networking: A Deep Dive into Istio's Multicluster Gateways - Steve Dake, Independent](https://youtu.be/-t2BfT59zJA?t=982)
-- Google Cloud Next'18 SF
-  - [Day 1 Keynote](https://youtu.be/vJ9OaAqfxo4?t=2416) showing GKE On-Prem
-  - [Day 3 Keynote](https://youtu.be/JQPOPV_VH5w?t=815) showing Stackdriver
-    APM (Tracing, Code Search, Profiler, Google Cloud Build)
-  - [Introduction to Service Management with Istio](https://www.youtube.com/watch?v=wCJrdKdD6UM&feature=youtu.be&t=586)
-- [Google Cloud Next'18 London – Keynote](https://youtu.be/nIq2pkNcfEI?t=3071)
-  showing Stackdriver Incident Response Management
+```bash
+kubectl get service frontend-external
+kubectl get pods
+```
+
+Extract the external IP:
+
+```bash
+kubectl get service frontend-external | awk '{print $4}'
+```
+
+Visit `http://<EXTERNAL_IP>` in your browser. Yes, it's `http`, not `https`.
+
+---
+
+## 🧼 Clean Teardown (Before Google Charges You)
+
+```bash
+gcloud container clusters delete online-boutique --region=europe-west6
+
+# Optional clean-up
+gcloud compute addresses list
+gcloud compute instances list
+```
+
+---
+
+## 🔗 Useful Resources
+
+- [Install GCloud CLI](https://cloud.google.com/sdk/docs/install)
+- [GKE API Enablement](https://console.cloud.google.com/apis/library/container.googleapis.com)
+- [GKE kubectl Auth Plugin](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl#install_plugin)
+- [Online Boutique Repo](https://github.com/GoogleCloudPlatform/microservices-demo)
+
+---
+
+## 🍼 Notes & Reflections
+
+- If `kubectl` routes you to the wrong API server, you're not hallucinating — check your kubeconfig.
+- Helm, Kustomize, Istio, Terraform... it's all here if you want to explore further    .
+- LICENSE: This is a documentation & learning artifact. Use freely, no license required.
+
+> “When `kubectl get pods` returns 12/12 Running, you feel like a god.  
+> When the frontend IP returns 403 — welcome to Kubernetes.”
+
+## License
+
+This repository is for learning and documentation purposes. No license restrictions apply.
+
+---
+
+Generated by Agent TL;DR v0.0.1  
+:: Documentation unit booted under Project ARGUS  
+:: Status: markdown_verbosity module = FULL SEND  
+"Summarizes everything. Writes too much."
